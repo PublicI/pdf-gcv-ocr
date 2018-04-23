@@ -9,6 +9,7 @@ const exec = require('child_process').exec;
 const fs = require('fs');
 const hummus = require('hummus');
 const _ = require('highland');
+const HummusRecipe = require('hummus-recipe');
 
 // Simple pass-through to pdftohtml so we can keep track of where the images went...
 function convertPDF(inputFile, outputDir) {
@@ -18,7 +19,7 @@ function convertPDF(inputFile, outputDir) {
         const inputPath = path.parse(inputFile);
         const outputFile = path.join(inputPath.dir, outputDir, inputPath.name);
         console.warn('Only looking at first 10 pages for demo, CHANGE THIS BEFORE PRODUCTION.');
-        exec(`mkdir -p "${path.dirname(outputFile)}" && pdftohtml -c -l 10 -xml "${inputFile}" "${outputFile}"`, async (error, stdout, stderr) => {
+        exec(`mkdir -p "${path.dirname(outputFile)}" && pdftohtml -zoom 4 -c -l 10 -xml "${inputFile}" "${outputFile}"`, async (error, stdout, stderr) => {
             if (error || stderr) reject([error, stderr]);
             else {
                 outputDir = path.dirname(outputFile);
@@ -68,21 +69,57 @@ function translateCoords(coords, page, pdfPage) {
     let top = coords.top;
     let left = coords.left;
     let newCoords = {
-        top: (top/page.height) * pdfPage[2],
-        left: (left/page.width) * pdfPage[3]
+        top: (top/page.height) * pdfPage.height,
+        left: (left/page.width) * pdfPage.width,
+        height: (coords.height/page.height) * pdfPage.height,
+        width: (coords.width/page.width) * pdfPage.width
     }
-
-    console.log(newCoords);
 
     return newCoords
 }
 
-function enrichPage(doc, page) {
+function setFonts(doc, page, pageMetadata) {
+    let scale = pageMetadata.width/page.width;
+    scale = 0.8;
+    console.log(pageMetadata.height, page.height, page.fontspec);
+
+    utils.hasToBeArray(page.fontspec)
+    .forEach(font => {
+        font.size = font.size * scale;
+        doc.fontSpec.set(font.id, font)
+    });
+
+    return doc
+}
+
+function enrichPage(doc, page, fonts) {
     page.number = parseInt(page.number);
 
-    if(page.number > doc.getModifiedFileParser().getPagesCount()) return doc;
+    let pageMetadata = doc.pageInfo(page.number);
+    let pdfPage = doc
+    .editPage(page.number)
 
-    let parsedPage = doc.getModifiedFileParser().parsePage(page.number - 1);    
+    if(page.fontspec) doc = setFonts(doc, page, pageMetadata);
+
+    _(utils.hasToBeArray(page.text))
+    .each(text => {
+        let textCoords = translateCoords(text, page, pageMetadata);
+        let font = doc.fontSpec.get(text.font);
+
+        font.textBox = {
+            width: text.width,
+            height: text.height
+        }
+
+        pdfPage.text(text['@text'], textCoords.left, textCoords.top, font)
+    })
+    .done(() => {
+        pdfPage.endPage();
+    })
+
+    //if(page.number > doc.getModifiedFileParser().getPagesCount()) return doc;
+
+    /* let parsedPage = doc.getModifiedFileParser().parsePage(page.number - 1);    
     let pageModifier = new hummus.PDFPageModifier(doc, page.number-1);
 
     let textOptions = {font:doc.getFontForFile('./Courier.dfont'), size: 10, colorspace:'gray',color:0x00};
@@ -105,16 +142,18 @@ function enrichPage(doc, page) {
         )
     })
     
-    pageModifier.endContext().writePage();
+    pageModifier.endContext().writePage(); */
     return doc;
 }
 
 function initializePDF(inputFile) {
-    let inputPDF = hummus.createWriterToModify(inputFile,{
+    const inputPDF = new HummusRecipe(inputFile, 'output.pdf');
+    inputPDF.fontSpec = new Map();
+    /* let inputPDF = hummus.createWriterToModify(inputFile,{
         modifiedFilePath:  './modified.pdf'
-    });
+    }); */
 
-    console.log(`${inputPDF.getModifiedFileParser().getPagesCount()} pages found.`);
+    //console.log(`${inputPDF.getModifiedFileParser().getPagesCount()} pages found.`);
 
     return inputPDF;
     /* let pageOrientation = pageWidth > pageHeight ? 'landscape' : 'portrait';

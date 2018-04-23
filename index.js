@@ -55,7 +55,7 @@ function recreatePDF() {
     .flatten()
     .filter(page => page.hasOwnProperty('image'))
     .reduce(inputPDF, pdf.enrichPage) // convert the pdf xml into a page.
-    .done(f => inputPDF.end())
+    .done(f => inputPDF.endPDF())
 }
 
 async function writeFile(result) {
