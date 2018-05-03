@@ -2,9 +2,9 @@
 
 This tool will take an arbitrary PDF file and run it through Google Cloud Vision and generate hOCR and PDF output for the same.
 
-This uses the DOCUMENT_TEXT_DETECTION operation on Cloud Vision, but could easily be adopted to just use TEXT_DETECTION. 
+This uses the `DOCUMENT_TEXT_DETECTION` operation on Cloud Vision, but could easily be adopted to just use `TEXT_DETECTION`. 
 
-To convert the GCV JSON output to hOCR - a modified version of the [gcv2hocr](https://github.com/dinosauria123/gcv2hocr) package is used (which only works with TEXT_DETECTION). To convert this hOCR output to a searchable PDF, the `hocr-pdf` script from [hocr-tools](https://github.com/tmbdev/hocr-tools) package is used. This script is included at `./lib/hocr-pdf.py`.
+To convert the GCV JSON output to hOCR - a modified version of the [gcv2hocr](https://github.com/dinosauria123/gcv2hocr) package is used (which only works with `TEXT_DETECTION`). To convert this hOCR output to a searchable PDF, the `hocr-pdf` script from [hocr-tools](https://github.com/tmbdev/hocr-tools) package is used. This script is included at `./lib/hocr-pdf.py`.
 
 ## How it works
 
