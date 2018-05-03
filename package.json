@@ -18,6 +18,6 @@
     "ocr": "node index.js ocr",
     "hocr": "./makehOCR.sh",
     "pdf": "./makePDF.sh",
-    "test": "./defaultPipeline.sh"
+    "all": "./defaultPipeline.sh"
   }
 }
