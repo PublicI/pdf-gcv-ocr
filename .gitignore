@@ -1,2 +1,4 @@
 node_modules
 test/*
+credentials.json
+.DS_Store
