@@ -11,6 +11,13 @@
     "highland": "^2.13.0",
     "hummus": "^1.0.86",
     "hummus-recipe": "^1.6.9",
-    "jspdf": "^1.3.5"
+    "jspdf": "^1.3.5",
+    "yargs": "^11.0.0"
+  },
+  "scripts": {
+    "ocr": "node index.js ocr",
+    "hocr": "./makehOCR.sh",
+    "pdf": "./makePDF.sh",
+    "test": "./defaultPipeline.sh"
   }
 }
