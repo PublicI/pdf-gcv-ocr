@@ -46,41 +46,26 @@ function readPDF(inputFile){
     return pdfReader;
 }
 
-function makePage(doc, page) {
-    // Landscape letter paper
-    let defaultDPI = 75; //PDFTOHTML default;
-
-    //let pageOrientation = page.height > page.width ? 'portrait' : 'landscape';
-    let pageHeight = page.height/75;
-    let pageWidth = page.width/75;
-
-    doc = doc ? doc.addPage([pageWidth, pageHeight]) : initializePDF(pageHeight, pageWidth)
-
-    let fonts = utils.hasToBeArray(page.fontspec);
-    let images = utils.hasToBeArray(page.image);
-    let texts = utils.hasToBeArray(page.text);
-
-    return doc;
-}
-
 function translateCoords(coords, page, pdfPage) {
     // the pdftohtml output is from top to bottom, we want bottom to top
     // also need to rescale the pdftohtml output from the page values and convert it to the new dimensions;
     let top = coords.top;
     let left = coords.left;
+
     let newCoords = {
         top: (top/page.height) * pdfPage.height,
         left: (left/page.width) * pdfPage.width,
         height: (coords.height/page.height) * pdfPage.height,
         width: (coords.width/page.width) * pdfPage.width
     }
-
-    return newCoords
+    
+    return newCoords;
 }
 
 function setFonts(doc, page, pageMetadata) {
     let scale = pageMetadata.width/page.width;
     scale = 0.8;
+    
     console.log(pageMetadata.height, page.height, page.fontspec);
 
     utils.hasToBeArray(page.fontspec)
@@ -92,23 +77,77 @@ function setFonts(doc, page, pageMetadata) {
     return doc
 }
 
+function parseGCV(doc, page) {
+    // Script that will parse the GCV output and create a text format similar to page.text so that we can add it to the pdf.
+    let pageMetadata = doc.pageInfo(page.number);
+
+    return _(page.image)
+    .map(image => image.ocr)
+    .flatMap(image => _(utils.readFileAsync(image, 'utf-8')))
+    .map(JSON.parse)
+    .pluck('fullTextAnnotation')
+    .flatten()
+    .pluck('pages')
+    .flatten()
+    .doto(pg => {
+        page.height = pg.height;
+        page.width = pg.width;
+    })
+    .pluck('blocks')
+    .flatten()
+    .pluck('paragraphs')
+    .flatten()
+    .pluck('words')
+    .flatten()
+    .pluck('symbols')
+    .flatten()
+    .map(d => {
+        let height = Math.max(...d.boundingBox.vertices.map(d => d.y)) - Math.min(...d.boundingBox.vertices.map(d => d.y));
+        let width = Math.max(...d.boundingBox.vertices.map(d => d.x)) - Math.min(...d.boundingBox.vertices.map(d => d.x));
+        
+        console.log(JSON.stringify(d.boundingBox), d.text);
+
+        let coords = { top: Math.max(...d.boundingBox.vertices.map(d => d.y)), left: Math.max(...d.boundingBox.vertices.map(d => d.x)), height: height, width: width };
+        let newCoords = coords//translateCoords(coords, page, pageMetadata);
+        //newCoords.boundingBox =  boundingBox: JSON.stringify(d.boundingBox)
+        newCoords['@text'] = d.text
+        return newCoords
+    })
+    .collect()
+    .toPromise(Promise)
+    .then(texts => {
+        page.text = texts
+        return page
+    });
+    //.zip(imageStream)
+    //.each(console.log)
+    
+}
+
 function enrichPage(doc, page, fonts) {
     page.number = parseInt(page.number);
 
     let pageMetadata = doc.pageInfo(page.number);
-    let pdfPage = doc
-    .editPage(page.number)
+    let pdfPage = doc.editPage(page.number)
 
     if(page.fontspec) doc = setFonts(doc, page, pageMetadata);
 
     _(utils.hasToBeArray(page.text))
-    .each(text => {
+    .map(text => {
         let textCoords = translateCoords(text, page, pageMetadata);
-        let font = doc.fontSpec.get(text.font);
+        let font;
+        if(typeof text.font == 'object') font = doc.fontSpec.get(text.font);
+        else font = {
+            family: "Times",
+            color: "#000000",
+            size: 3
+        }
 
         font.textBox = {
             width: text.width,
-            height: text.height
+            height: text.height,
+            lineHeight: text.height,
+            lineWidth: text.width
         }
 
         pdfPage.text(text['@text'], textCoords.left, textCoords.top, font)
@@ -116,55 +155,17 @@ function enrichPage(doc, page, fonts) {
     .done(() => {
         pdfPage.endPage();
     })
-
-    //if(page.number > doc.getModifiedFileParser().getPagesCount()) return doc;
-
-    /* let parsedPage = doc.getModifiedFileParser().parsePage(page.number - 1);    
-    let pageModifier = new hummus.PDFPageModifier(doc, page.number-1);
-
-    let textOptions = {font:doc.getFontForFile('./Courier.dfont'), size: 10, colorspace:'gray',color:0x00};
     
-    let ctx = pageModifier.startContext().getContext();
-
-    //ctx.cm(0, 1, -1, 0, 0, 0)
-    let ratio = parsedPage.getMediaBox()[1]/page.height;
-
-    ctx.cm(...[0,1,-1,0,0,-parsedPage.getMediaBox()[2]])
-    _(utils.hasToBeArray(page.text))
-    .each(text => {
-        console.log(text);
-        let textCoords = translateCoords(text, page, parsedPage.getMediaBox());
-        ctx.writeText(
-            text['@text'],
-            textCoords.top,
-            textCoords.left,
-            textOptions
-        )
-    })
-    
-    pageModifier.endContext().writePage(); */
     return doc;
 }
 
 function initializePDF(inputFile) {
     const inputPDF = new HummusRecipe(inputFile, 'output.pdf');
     inputPDF.fontSpec = new Map();
-    /* let inputPDF = hummus.createWriterToModify(inputFile,{
-        modifiedFilePath:  './modified.pdf'
-    }); */
 
     //console.log(`${inputPDF.getModifiedFileParser().getPagesCount()} pages found.`);
 
     return inputPDF;
-    /* let pageOrientation = pageWidth > pageHeight ? 'landscape' : 'portrait';
-
-    var doc = new jsPDF({
-        unit: 'in',
-        orientation: pageOrientation,
-        format: [pageWidth, pageHeight]
-    });
-
-    return doc; */
 }
 
 function writePDF(doc) {
@@ -181,5 +182,6 @@ module.exports = {
     initializePDF: initializePDF,
     enrichPage: enrichPage,
     writePdf: writePDF,
-    readPDF: readPDF
+    readPDF: readPDF,
+    parseGCV: parseGCV
 }

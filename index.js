@@ -2,16 +2,24 @@ const fs = require('fs');
 const path = require('path');
 const _ = require('highland');
 const fastXmlParser = require('fast-xml-parser');
-const inputFile = "./test/CPB-FOIA-Release-CBP000421.pdf";
-const outputDir = "CBP_Claims_Images";
-const outputPath = path.join(path.dirname(inputFile), outputDir);
-const resultsPath = './CBP_FOIA_Response_OCR.json';
+const yargs = require('yargs');
+
+//const resultsPath = './CBP_FOIA_Response_OCR.json';
 
 const pdf = require('./pdf');
 const gcv = require('./gcv');
 const utils = require('./utils');
 
-function ocrPDF() {
+function test(yargs) {
+    console.log(yargs)
+}
+
+function ocrPDF(yargs) {
+
+    const inputFile = yargs.inputPDF;
+    const outputDir = yargs.outputDir || path.basename(inputFile) + '_ocr';
+    const outputPath = path.join(path.dirname(inputFile), outputDir);
+
     let metadata = {};
 
     let pdfStream = _(pdf.convertPDF(inputFile, outputDir))
@@ -54,10 +62,27 @@ function recreatePDF() {
     .map(utils.hasToBeArray)
     .flatten()
     .filter(page => page.hasOwnProperty('image'))
+    .take(1)
+    .map(page => {
+        page.image = utils.hasToBeArray(page.image)
+        .map(image => {
+            let imagePath = path.parse(image.src);
+
+            image.ocr = path.join(imagePath.dir, imagePath.name + ".json");
+            return image
+        })
+        return page;
+    })
+    .flatMap(page => _(pdf.parseGCV(inputPDF, page)))
+    //.reduce(inputPDF, pdf.parseGCV)
     .reduce(inputPDF, pdf.enrichPage) // convert the pdf xml into a page.
     .done(f => inputPDF.endPDF())
+    //.each(console.log)
 }
 
+function addGCVText() {
+    // Read the GCV Input and add in the text accordingly.
+}
 async function writeFile(result) {
     let ocrOutput = result[0];
     let outputFile = result[1];
@@ -67,4 +92,19 @@ async function writeFile(result) {
     return outputFile;
 }
 
-recreatePDF()
+yargs
+    .usage('Usage: $0 <command> <inputPDF> [options]')
+    .command(
+        'ocr <inputPDF>',
+        'run pdf to gocr to output json file',
+        () => {},
+        ocrPDF
+    )
+    .option('outputDir', {
+        alias: 'o',
+        describe: 'Path to write images & JSON files to.',
+        type: 'string'
+    })
+    .describe('ocr', 'OCR a PDF File')
+    .alias('h', 'help').argv;
+//ocrPDF()
