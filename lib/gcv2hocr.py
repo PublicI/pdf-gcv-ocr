@@ -103,12 +103,14 @@ def fromResponse(resp, baseline_tolerance=2, **kwargs):
                     wordText = ""
                     for symbol in wordObj['symbols']:
                         wordText += symbol['text']
-                        detectedBreak = symbol['property']['detectedBreak']
-                        if detectedBreak is not None:
-                            if detectedBreak['type'] == 'SPACE':
+                        if 'property' in symbol and 'detectedBreak' in symbol['property']:
+                            detectedBreak = symbol['property']['detectedBreak']
+                            if detectedBreak['type'] in ['SPACE', 'SURE_SPACE']:
                                 wordText += " "
-                            elif detectedBreak['type'] == 'LINE_BREAK':
+                            elif detectedBreak['type'] in ['LINE_BREAK', 'EOL_SURE_SPACE']:
                                 wordText += " "
+                            elif detectedBreak['type'] == 'HYPHEN':
+                                wordText += "\u00AD"
 
                     box = wordObj['boundingBox']['vertices']
                     word = GCVAnnotation(ocr_class='ocrx_word', content=escape(wordText), box=box)
