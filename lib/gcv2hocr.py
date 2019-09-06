@@ -41,9 +41,13 @@ class GCVAnnotation:
                  baseline="0 -5",
                  page_height=None,
                  page_width=None,
-                 content=[],
+                 content=None,
                  box=None,
                  title=''):
+        if content==None:
+            self.content = []
+        else:
+            self.content = content
         self.title = title
         self.htmlid = htmlid
         self.baseline = baseline
@@ -51,7 +55,6 @@ class GCVAnnotation:
         self.page_width = page_width
         self.lang = lang
         self.ocr_class = ocr_class
-        self.content = content
         self.x0 = box[0]['x']
         self.y0 = box[0]['y']
         self.x1 = box[2]['x']
@@ -158,7 +161,7 @@ if __name__ == '__main__':
         help="Image height. Automatically detected unless specified")
     args = parser.parse_args()
 
-    instream = sys.stdin if args.gcv_file is '-' else open(args.gcv_file, 'r')
+    instream = sys.stdin if args.gcv_file is '-' else open(args.gcv_file, 'r', encoding='utf-8')
     resp = json.load(instream)
     if hasattr(resp, 'responses'): resp = ['responses'][0]
 
